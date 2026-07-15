@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bildspel (Vit bakgrund)</title>
+    <title>Bildspel (Håll skärmen vaken)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -90,7 +90,7 @@
 <body>
 
     <div id="slider-container">
-        <!-- Byt ut exemplen nedanför mot dina egna filnamn, t.ex. src="semester_2026.jpg" -->
+        <!-- Byt ut exemplen nedanför mot dina egna filnamn -->
         <img class="slide active" src="images/1. Centre.png" alt="Bild 1">
         <img class="slide" src="images/2. Expand.png" alt="Bild 2">
         <img class="slide" src="images/3. Balance.png" alt="Bild 3">
@@ -135,11 +135,31 @@
         let isPlaying = true;
         let timeLeft = 60; 
         let timerInterval;
+        let wakeLock = null;
+
+        // Funktion för att begära att skärmen hålls vaken
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator && isPlaying) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Skärmen hålls nu vaken.');
+                } catch (err) {
+                    console.warn(`Kunde inte aktivera skärmlås: ${err.message}`);
+                }
+            }
+        }
+
+        // Funktion för att släppa skärmlåset
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+                console.log('Skärmlåset har släppts.');
+            }
+        }
 
         function getCleanFileName(src) {
-            // Hämtar bara själva filnamnet från sökvägen (tar bort mappar)
             const baseName = src.substring(src.lastIndexOf('/') + 1);
-            // Tar bort filändelsen (t.ex. .jpg, .png, .jpeg)
             return baseName.substring(0, baseName.lastIndexOf('.')) || baseName;
         }
 
@@ -148,7 +168,6 @@
                 slide.classList.toggle('active', index === currentIndex);
             });
             
-            // Uppdatera filnamn och räknare
             const currentSlideSrc = slides[currentIndex].getAttribute('src');
             fileNameDisplay.textContent = getCleanFileName(currentSlideSrc);
             info.textContent = `${currentIndex + 1} / ${slides.length}`;
@@ -171,8 +190,10 @@
             playPauseBtn.textContent = isPlaying ? 'Pausa' : 'Spela';
             if (!isPlaying) {
                 clearInterval(timerInterval);
+                releaseWakeLock(); // Släpp skärmlåset om man pausar
             } else {
                 startTimer();
+                requestWakeLock(); // Aktivera skärmlåset igen vid start
             }
         }
 
@@ -200,12 +221,20 @@
             progressBar.style.width = `${percentage}%`;
         }
 
+        // Återaktivera skärmlåset automatiskt om användaren minimerat fliken och går tillbaka till den
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+
         nextBtn.addEventListener('click', nextSlide);
         prevBtn.addEventListener('click', prevSlide);
         playPauseBtn.addEventListener('click', togglePlayPause);
 
-        // Starta appen
+        // Starta appen och begär skärmlås
         updateSlider();
+        requestWakeLock();
     </script>
 </body>
 </html>
