@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bildspel (Håll skärmen vaken)</title>
+    <title>Bildspel (iOS Skärmlås-skydd)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -12,14 +12,39 @@
         }
         body {
             font-family: Arial, sans-serif;
-            background-color: #ffffff; /* Vit bakgrund */
-            color: #333333; /* Mörkgrå text */
+            background-color: #ffffff;
+            color: #333333;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             overflow: hidden;
+        }
+        /* Startskärm för iOS-aktivering */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        #start-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
         #slider-container {
             position: relative;
@@ -53,7 +78,7 @@
             align-items: center;
             gap: 15px;
         }
-        button {
+        button.control {
             background-color: #f0f0f0;
             color: #333;
             border: 1px solid #ccc;
@@ -63,7 +88,7 @@
             border-radius: 4px;
             transition: background 0.2s;
         }
-        button:hover {
+        button.control:hover {
             background-color: #e0e0e0;
         }
         #info {
@@ -89,8 +114,13 @@
 </head>
 <body>
 
+    <!-- iOS Startskärm -->
+    <div id="overlay">
+        <button id="start-btn">Meditera!</button>
+    </div>
+
     <div id="slider-container">
-        <!-- Byt ut exemplen nedanför mot dina egna filnamn -->
+        <!-- Dina 15 bilder -->
         <img class="slide active" src="images/1. Centre.png" alt="Bild 1">
         <img class="slide" src="images/2. Expand.png" alt="Bild 2">
         <img class="slide" src="images/3. Balance.png" alt="Bild 3">
@@ -108,7 +138,6 @@
         <img class="slide" src="images/15. Manifest.png" alt="Bild 15">
     </div>
 
-    <!-- Centrerat filnamn under bilden -->
     <div id="file-name"></div>
 
     <div id="progress-bar-container">
@@ -116,9 +145,9 @@
     </div>
 
     <div id="controls">
-        <button id="prev-btn">Föregående</button>
-        <button id="play-pause-btn">Pausa</button>
-        <button id="next-btn">Nästa</button>
+        <button id="prev-btn" class="control">Föregående</button>
+        <button id="play-pause-btn" class="control">Pausa</button>
+        <button id="next-btn" class="control">Nästa</button>
         <span id="info">1 / 15</span>
     </div>
 
@@ -130,32 +159,45 @@
         const info = document.getElementById('info');
         const fileNameDisplay = document.getElementById('file-name');
         const progressBar = document.getElementById('progress-bar');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
 
         let currentIndex = 0;
         let isPlaying = true;
         let timeLeft = 60; 
         let timerInterval;
         let wakeLock = null;
+        let iosVideoWake = null;
 
-        // Funktion för att begära att skärmen hålls vaken
+        // Skapa en helt osynlig, tyst video (Base64-kodad 1-sekunds MP4) speciellt för iOS
+        function setupIOSWakeVideo() {
+            if (!iosVideoWake) {
+                iosVideoWake = document.createElement('video');
+                iosVideoWake.setAttribute('loop', '');
+                iosVideoWake.setAttribute('playsinline', '');
+                iosVideoWake.setAttribute('muted', '');
+                iosVideoWake.style.position = 'absolute';
+                iosVideoWake.style.width = '1px';
+                iosVideoWake.style.height = '1px';
+                iosVideoWake.style.opacity = '0';
+                // En extremt liten, tyst och tom MP4-video som loopar
+                iosVideoWake.src = 'data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wStandardNoWake...AAAAIG1kYXQ='; 
+                document.body.appendChild(iosVideoWake);
+            }
+            
+            iosVideoWake.play().catch(err => console.log("iOS Video blockerad:", err));
+        }
+
+        // Standard Wake Lock API för datorer/Android
         async function requestWakeLock() {
             if ('wakeLock' in navigator && isPlaying) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Skärmen hålls nu vaken.');
-                } catch (err) {
-                    console.warn(`Kunde inte aktivera skärmlås: ${err.message}`);
-                }
+                try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
             }
         }
 
-        // Funktion för att släppa skärmlåset
         function releaseWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release();
-                wakeLock = null;
-                console.log('Skärmlåset har släppts.');
-            }
+            if (wakeLock !== null) { wakeLock.release(); wakeLock = null; }
+            if (iosVideoWake) { iosVideoWake.pause(); }
         }
 
         function getCleanFileName(src) {
@@ -167,33 +209,25 @@
             slides.forEach((slide, index) => {
                 slide.classList.toggle('active', index === currentIndex);
             });
-            
             const currentSlideSrc = slides[currentIndex].getAttribute('src');
             fileNameDisplay.textContent = getCleanFileName(currentSlideSrc);
             info.textContent = `${currentIndex + 1} / ${slides.length}`;
-            
             resetTimer();
         }
 
-        function nextSlide() {
-            currentIndex = (currentIndex + 1) % slides.length;
-            updateSlider();
-        }
-
-        function prevSlide() {
-            currentIndex = (currentIndex - 1 + slides.length) % slides.length;
-            updateSlider();
-        }
+        function nextSlide() { currentIndex = (currentIndex + 1) % slides.length; updateSlider(); }
+        function prevSlide() { currentIndex = (currentIndex - 1 + slides.length) % slides.length; updateSlider(); }
 
         function togglePlayPause() {
             isPlaying = !isPlaying;
             playPauseBtn.textContent = isPlaying ? 'Pausa' : 'Spela';
             if (!isPlaying) {
                 clearInterval(timerInterval);
-                releaseWakeLock(); // Släpp skärmlåset om man pausar
+                releaseWakeLock();
             } else {
                 startTimer();
-                requestWakeLock(); // Aktivera skärmlåset igen vid start
+                requestWakeLock();
+                if (iosVideoWake) iosVideoWake.play().catch(()=>{});
             }
         }
 
@@ -201,18 +235,14 @@
             clearInterval(timerInterval);
             timeLeft = 60;
             updateProgressBar();
-            if (isPlaying) {
-                startTimer();
-            }
+            if (isPlaying) startTimer();
         }
 
         function startTimer() {
             timerInterval = setInterval(() => {
                 timeLeft--;
                 updateProgressBar();
-                if (timeLeft <= 0) {
-                    nextSlide();
-                }
+                if (timeLeft <= 0) nextSlide();
             }, 1000);
         }
 
@@ -221,20 +251,17 @@
             progressBar.style.width = `${percentage}%`;
         }
 
-        // Återaktivera skärmlåset automatiskt om användaren minimerat fliken och går tillbaka till den
-        document.addEventListener('visibilitychange', () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                requestWakeLock();
-            }
+        // Startknappen som låser upp iOS videofunktion
+        startBtn.addEventListener('click', () => {
+            overlay.style.display = 'none'; // Dölj startskärmen
+            setupIOSWakeVideo();           // Aktivera videoloopen för iOS Safari
+            requestWakeLock();             // Aktivera standard-Wakelock
+            updateSlider();                // Starta bildspelet
         });
 
         nextBtn.addEventListener('click', nextSlide);
         prevBtn.addEventListener('click', prevSlide);
         playPauseBtn.addEventListener('click', togglePlayPause);
-
-        // Starta appen och begär skärmlås
-        updateSlider();
-        requestWakeLock();
     </script>
 </body>
 </html>
