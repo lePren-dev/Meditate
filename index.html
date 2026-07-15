@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bildspel (Vit bakgrund)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ffffff; /* Vit bakgrund */
+            color: #333333; /* Mörkgrå text */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #slider-container {
+            position: relative;
+            width: 90vw;
+            height: 70vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #ffffff;
+        }
+        .slide {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .slide.active {
+            display: block;
+        }
+        #file-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+            text-align: center;
+            min-height: 30px;
+            width: 90vw;
+        }
+        #controls {
+            margin-top: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        button {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ccc;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #e0e0e0;
+        }
+        #info {
+            font-size: 16px;
+            min-width: 80px;
+            text-align: center;
+        }
+        #progress-bar-container {
+            width: 90vw;
+            height: 6px;
+            background-color: #eaeaea;
+            margin-top: 15px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #007bff;
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="slider-container">
+        <!-- Byt ut exemplen nedanför mot dina egna filnamn, t.ex. src="semester_2026.jpg" -->
+        <img class="slide active" src="images/1. Centre.png" alt="Bild 1">
+        <img class="slide" src="images/2. Expand.png" alt="Bild 2">
+        <img class="slide" src="images/3. Balance.png" alt="Bild 3">
+        <img class="slide" src="images/4. Prepare.png" alt="Bild 4">
+        <img class="slide" src="images/5. Express.png" alt="Bild 5">
+        <img class="slide" src="images/6. Extend.png" alt="Bild 6">
+        <img class="slide" src="images/7. Unlock.png" alt="Bild 7">
+        <img class="slide" src="images/8. Flow.png" alt="Bild 8">
+        <img class="slide" src="images/9. Recieve.png" alt="Bild 9">
+        <img class="slide" src="images/10. Relate.png" alt="Bild 10">
+        <img class="slide" src="images/11. Realize.png" alt="Bild 11">
+        <img class="slide" src="images/12. Act.png" alt="Bild 12">
+        <img class="slide" src="images/13. Transform.png" alt="Bild 13">
+        <img class="slide" src="images/14. Connect.png" alt="Bild 14">
+        <img class="slide" src="images/15. Manifest.png" alt="Bild 15">
+    </div>
+
+    <!-- Centrerat filnamn under bilden -->
+    <div id="file-name"></div>
+
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+
+    <div id="controls">
+        <button id="prev-btn">Föregående</button>
+        <button id="play-pause-btn">Pausa</button>
+        <button id="next-btn">Nästa</button>
+        <span id="info">1 / 15</span>
+    </div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const info = document.getElementById('info');
+        const fileNameDisplay = document.getElementById('file-name');
+        const progressBar = document.getElementById('progress-bar');
+
+        let currentIndex = 0;
+        let isPlaying = true;
+        let timeLeft = 60; 
+        let timerInterval;
+
+        function getCleanFileName(src) {
+            // Hämtar bara själva filnamnet från sökvägen (tar bort mappar)
+            const baseName = src.substring(src.lastIndexOf('/') + 1);
+            // Tar bort filändelsen (t.ex. .jpg, .png, .jpeg)
+            return baseName.substring(0, baseName.lastIndexOf('.')) || baseName;
+        }
+
+        function updateSlider() {
+            slides.forEach((slide, index) => {
+                slide.classList.toggle('active', index === currentIndex);
+            });
+            
+            // Uppdatera filnamn och räknare
+            const currentSlideSrc = slides[currentIndex].getAttribute('src');
+            fileNameDisplay.textContent = getCleanFileName(currentSlideSrc);
+            info.textContent = `${currentIndex + 1} / ${slides.length}`;
+            
+            resetTimer();
+        }
+
+        function nextSlide() {
+            currentIndex = (currentIndex + 1) % slides.length;
+            updateSlider();
+        }
+
+        function prevSlide() {
+            currentIndex = (currentIndex - 1 + slides.length) % slides.length;
+            updateSlider();
+        }
+
+        function togglePlayPause() {
+            isPlaying = !isPlaying;
+            playPauseBtn.textContent = isPlaying ? 'Pausa' : 'Spela';
+            if (!isPlaying) {
+                clearInterval(timerInterval);
+            } else {
+                startTimer();
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 60;
+            updateProgressBar();
+            if (isPlaying) {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateProgressBar();
+                if (timeLeft <= 0) {
+                    nextSlide();
+                }
+            }, 1000);
+        }
+
+        function updateProgressBar() {
+            const percentage = ((60 - timeLeft) / 60) * 100;
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        nextBtn.addEventListener('click', nextSlide);
+        prevBtn.addEventListener('click', prevSlide);
+        playPauseBtn.addEventListener('click', togglePlayPause);
+
+        // Starta appen
+        updateSlider();
+    </script>
+</body>
+</html>
